@@ -22,31 +22,26 @@ int alert = FALSE;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Method to handle SW pressing
-void BOARD_SW_IRQ_HANDLER(void)
-{
+void BOARD_SW_IRQ_HANDLER(void) {
 	GPIO_DRV_ClearPinIntFlag(BOARD_SW_GPIO);
 	isButtonPress = TRUE;
 }
 
 // Read the data from the sensor
-void getAccelData(accel_sensor_data_t *accelData, int *x, int *y)
-{
-	*x = (int)((int16_t)((accelData->data.accelXMSB << 8) | accelData->data.accelXLSB) * 0.011);
-	*y = (int)((int16_t)((accelData->data.accelYMSB << 8) | accelData->data.accelYLSB) * 0.011);
+void getAccelData(accel_sensor_data_t *accelData, int *x, int *y) {
+	*x = (int) ((int16_t) ((accelData->data.accelXMSB << 8)
+			| accelData->data.accelXLSB) * 0.011);
+	*y = (int) ((int16_t) ((accelData->data.accelYMSB << 8)
+			| accelData->data.accelYLSB) * 0.011);
 }
 
 // show the message in normal behavior
-void showNormalBehavior(int *absX, int *absY, int *x, int *y)
-{
-	PRINTF("Roulis %d degre %s Tanguage %d degre %s\r\n",
-		   *absY,
-		   *y < 0 ? "D" : "G",
-		   *absX,
-		   *x < 0 ? "H" : "B")
+void showNormalBehavior(int *absX, int *absY, int *x, int *y) {
+	PRINTF("Roulis %d degre %s Tanguage %d degre %s\r\n", *absY,
+			*y < 0 ? "D" : "G", *absX, *x < 0 ? "H" : "B");
 }
 
-int main(void)
-{
+int main(void) {
 	tpm_general_config_t driverInfo;
 	accel_dev_t accDev;
 	accel_dev_interface_t accDevice;
@@ -58,26 +53,27 @@ int main(void)
 
 	// Message variables
 	int taguage, valeur, dir;
-	char **directions = {{"haut", "bas"}, {"droite", "gauche"}};
+
+	const char** directions[2][2];
+	directions[0][0] = "haut";
+	directions[0][1] = "bas";
+	directions[1][0] = "droite";
+	directions[1][1] = "gauche";
 
 	// Define gpio input pin config structure SW.
-	gpio_input_pin_user_config_t inputPin[] = {{
-		.pinName = BOARD_SW_GPIO,
-		.config.isPullEnable = true,
+	gpio_input_pin_user_config_t inputPin[] = { { .pinName = BOARD_SW_GPIO,
+			.config.isPullEnable = true,
 #if FSL_FEATURE_PORT_HAS_PULL_SELECTION
-		.config.pullSelect = kPortPullUp,
+			.config.pullSelect = kPortPullUp,
 #endif
 #if FSL_FEATURE_PORT_HAS_PASSIVE_FILTER
-		.config.isPassiveFilterEnabled = false,
+			.config.isPassiveFilterEnabled = false,
 #endif
 #if FSL_FEATURE_PORT_HAS_DIGITAL_FILTER
-		.config.isDigitalFilterEnabled = false,
+			.config.isDigitalFilterEnabled = false,
 #endif
-		.config.interrupt = kPortIntFallingEdge,
-		},
-		{
-			.pinName = GPIO_PINS_OUT_OF_RANGE,
-		}};
+			.config.interrupt = kPortIntFallingEdge, }, { .pinName =
+			GPIO_PINS_OUT_OF_RANGE, } };
 
 	xAxisParams.mode = kTpmEdgeAlignedPWM;
 	xAxisParams.edgeMode = kTpmHighTrue;
@@ -116,15 +112,14 @@ int main(void)
 
 	// Set clock for TPM.
 	TPM_DRV_SetClock(BOARD_BUBBLE_TPM_INSTANCE, kTpmClockSourceModuleClk,
-					 kTpmDividedBy2);
+			kTpmDividedBy2);
 
 	LED1_EN;
 	GPIO_DRV_InputPinInit(inputPin);
 
 	alert = FALSE;
 	// Main loop.  Get sensor data and update duty cycle for the TPM timer.
-	while (TRUE)
-	{
+	while (TRUE) {
 		OSA_TimeDelay(5);
 		READ_SENSOR_DATA;
 
@@ -132,24 +127,19 @@ int main(void)
 		absX = abs(x);
 		absY = abs(y);
 
-		if ((absX <= 2 && absY <= 2) && !alert)
-		{
+		if ((absX <= 2 && absY <= 2) && !alert) {
 			// Plane has no angle
 			alert = FALSE;
 			RED_LED_ON;
 			BLUE_LED_ON;
 			GREEN_LED_ON;
-		}
-		else if ((absX >= 45 || absY >= 45) || alert)
-		{
+		} else if ((absX >= 45 || absY >= 45) || alert) {
 			// Plane has > 45 deg in any way
 			alert = TRUE;
 			GREEN_LED_ON;
 			RED_LED_OFF;
 			BLUE_LED_OFF;
-		}
-		else if (!alert)
-		{
+		} else if (!alert) {
 			// normal behavior
 			alert = FALSE;
 			GREEN_LED_OFF;
@@ -157,28 +147,26 @@ int main(void)
 			BLUE_LED_BY_ANGLE;
 		}
 
-		TPM_DRV_PwmStart(BOARD_BUBBLE_TPM_INSTANCE, &xAxisParams, BOARD_TPM_X_CHANNEL);
-		TPM_DRV_PwmStart(BOARD_BUBBLE_TPM_INSTANCE, &yAxisParams, BOARD_TPM_Y_CHANNEL);
+		TPM_DRV_PwmStart(BOARD_BUBBLE_TPM_INSTANCE, &xAxisParams,
+				BOARD_TPM_X_CHANNEL);
+		TPM_DRV_PwmStart(BOARD_BUBBLE_TPM_INSTANCE, &yAxisParams,
+				BOARD_TPM_Y_CHANNEL);
 
-		if (absX < 45 && absY < 45)
-		{
+		if ((absX < 45 && absY < 45) && !alert) {
 			showNormalBehavior(&absX, &absY, &x, &y);
-		}
-		else
-		{
+		} else if(absX >= 45 || absY >= 45) {
+
 			taguage = absX >= 45;
 			valeur = taguage ? x : y;
 			dir = valeur < 0 ? 0 : 1;
 
 			PRINTF("Alerte %s : plus de 45, %s %s a %d degres\r\n",
-				   taguage ? "taguage" : "roulis",
-				   taguage ? "nez" : "inclinaison",
-				   directions[taguage][dir],
-				   abs(valeur));
+					taguage ? "taguage" : "roulis",
+					taguage ? "nez" : "inclinaison", directions[taguage][dir],
+					abs(valeur));
 		}
 
-		if (isButtonPress)
-		{
+		if (isButtonPress) {
 			isButtonPress = FALSE;
 			alert = FALSE;
 		}
